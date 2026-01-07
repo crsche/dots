@@ -5,7 +5,7 @@
 }:
 let
   hostName = "vps";
-  rootDisk = "";
+  rootDisk = "/dev/disk/by-uuid/a03c79b4-0622-43d7-ac01-d24cdd70e685";
 in
 {
   nixpkgs = {
@@ -167,6 +167,10 @@ in
     udisks2.enable = false;
   };
 
+  users.users.root.openssh.authorizedKeys.keys = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF4x4a59eOntSGiZqdnZtUr1PJvW/r8ehc/ZK21FCmsc" # Macbook
+  ];
+
   systemd = {
     services = {
       "serial-getty@ttyS0".enable = false;
@@ -266,5 +270,8 @@ in
     };
   };
 
-  system.stateVersion = "26.05";
+  system = {
+    stateVersion = "26.05";
+    copySystemConfiguration = true;
+  };
 }
