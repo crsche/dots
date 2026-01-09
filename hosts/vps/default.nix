@@ -1,6 +1,5 @@
 {
   pkgs,
-  modulesPath,
   ...
 }:
 let
@@ -161,6 +160,11 @@ in
         KbdInteractiveAuthentication = false;
       };
     };
+    mosh = {
+      enable = true;
+      withUtempter = true;
+      openFirewall = true;
+    };
     qemuGuest = {
       enable = true;
     };
@@ -207,7 +211,6 @@ in
   };
 
   environment = {
-    # Perl is a default package.
     defaultPackages = [ ];
     stub-ld.enable = false;
   };
