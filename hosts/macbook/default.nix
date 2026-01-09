@@ -1,6 +1,7 @@
 {
   pkgs,
   inputs,
+  config,
   ...
 }:
 
@@ -18,6 +19,7 @@ in
   imports = [
     inputs.home-manager.darwinModules.home-manager
     inputs.determinate.darwinModules.default
+    inputs.nix-homebrew.darwinModules.nix-homebrew
   ];
 
   # ---------------------------------------------------------------------------
@@ -84,6 +86,43 @@ in
     overlays = [
       inputs.neovim-nightly-overlay.overlays.default
       inputs.fenix.overlays.default
+    ];
+  };
+
+  nix-homebrew = {
+    enable = true;
+
+    user = user.name;
+
+    enableRosetta = false;
+
+    taps = {
+      "homebrew/homebrew-cask" = inputs.tap-brew-cask;
+    };
+
+    mutableTaps = false;
+  };
+
+  homebrew = {
+    enable = true;
+
+    onActivation = {
+      cleanup = "zap";
+      autoUpdate = true; # mutableTaps = false
+      upgrade = true;
+    };
+
+    taps = builtins.attrNames config.nix-homebrew.taps;
+
+    caskArgs = {
+      # FIXME: spotify has no SHA
+      require_sha = false;
+    };
+
+    casks = [
+      "spotify"
+      "nordvpn"
+      "slack"
     ];
   };
 
@@ -323,6 +362,7 @@ in
   home-manager = {
     useGlobalPkgs = true;
     useUserPackages = true;
+    backupFileExtension = "before-home-manager";
     users.${user.name} = ./home.nix;
   };
 

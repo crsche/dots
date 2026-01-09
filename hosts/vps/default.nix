@@ -1,5 +1,6 @@
 {
   pkgs,
+  config,
   ...
 }:
 let
@@ -9,35 +10,38 @@ in
 {
   nixpkgs = {
     overlays = [
-      (
-        final: prev:
-        let
-          optimizedStdenv = prev.lib.pipe prev.stdenv [
-            # 1. Use the Mold linker
-            prev.useMoldLinker
+      (final: prev: {
+        ccacheWrapper = prev.ccacheWrapper.override {
+          extraConfig = ''
+            export CCACHE_COMPRESS=1
+            export CCACHE_DIR="${config.programs.ccache.cacheDir}"
+            export CCACHE_UMASK=007
+            export CCACHE_SLOPPINESS=random_seed
+            if [ ! -d "$CCACHE_DIR" ]; then
+              echo "Directory '$CCACHE_DIR' does not exist"
+              exit 1
+            fi
+            if [ ! -w "$CCACHE_DIR" ]; then
+              echo "Directory '$CCACHE_DIR' is not accessible for user $(whoami)"
+              exit 1
+            fi
+          '';
+        };
 
-            # 2. Apply impure native optimizations (march=native)
-            prev.impureUseNativeOptimizations
-
-            # 3. Add compiler flags
-            # We wrap this in parenthesis to pass the argument
-            (prev.withCFlags [
-              "-O3"
-              "-flto"
-              "-funroll-loops"
-            ])
-          ];
-        in
-        {
-          # TODO
-        }
-      )
+      })
     ];
+    config = {
+      replaceStdenv =
+        { pkgs }:
+        pkgs.withCFlags [ "-O3" "-flto=auto" "-funroll-loops" "-fno-plt" ] (
+          pkgs.useMoldLinker pkgs.ccacheStdenv
+        );
+    };
     hostPlatform = {
       system = "x86_64-linux";
       gcc = {
-        # arch = "znver1";
-        # tune = "znver1";
+        arch = "znver1";
+        tune = "znver1";
       };
     };
   };
@@ -63,33 +67,33 @@ in
     kernelPackages = pkgs.linuxPackages_xanmod_latest;
     initrd = {
       availableKernelModules = [
+        # Virtio (most common on KVM VPS)
+        "virtio"
+        "virtio_ring"
         "virtio_pci"
-        "virtio_mmio"
         "virtio_blk"
         "virtio_scsi"
-
-        "virtio_net"
       ];
       kernelModules = [
+        "ext4"
         "virtio_balloon"
         "virtio_console"
         "virtio_rng"
       ];
-      verbose = false;
+      # verbose = false;
       compressor = "zstd";
     };
     loader = {
       grub = {
         splashImage = null;
         forceInstall = true;
-        device = rootDisk;
+        device = "/dev/sda";
       };
       timeout = 1;
     };
     kernelParams = [
       # CPU & SCHEDULING
       "preempt=full" # Maximize responsiveness
-      "scsi_mod.use_blk_mq=1" # NVMe multi-queue
       "elevator=none" # Let the NVMe controller handle scheduling, OS scheduler adds latency
 
       # MEMORY
@@ -101,10 +105,9 @@ in
 
       # CONSOLE
       "console=ttyS0" # Contabo uses serial console for VNC/Emergency
-      "panic=10" # Reboot after 10s on panic
+      "panic=5"
 
       # FROM
-      "panic=1"
       "boot.panic_on_fail"
       "vga=0x317"
       "nomodeset"
@@ -197,6 +200,10 @@ in
   ];
 
   systemd = {
+    tmpfiles.rules = [
+      "d ${config.programs.ccache.cacheDir} 0770 root nixbld -"
+    ];
+
     services = {
       "serial-getty@ttyS0".enable = false;
       "serial-getty@hvc0".enable = false;
@@ -237,6 +244,7 @@ in
   };
 
   programs = {
+    ccache.enable = true;
     mosh = {
       enable = true;
       withUtempter = true;
@@ -271,8 +279,8 @@ in
       cores = 0;
 
       auto-optimise-store = true;
-      keep-outputs = false;
-      keep-derivations = false;
+      keep-outputs = true;
+      keep-derivations = true;
 
       allowed-users = [ "@wheel" ];
 
@@ -285,12 +293,16 @@ in
         "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       ];
 
+      extra-sandbox-paths = [
+        config.programs.ccache.cacheDir
+      ];
       system-features = [
         "big-parallel"
         "kvm"
         "gccarch-znver1"
       ];
       experimental-features = [
+        "ca-derivations"
         "nix-command"
         "flakes"
       ];
