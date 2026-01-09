@@ -7,11 +7,9 @@ let
   rootDisk = "/dev/disk/by-uuid/a03c79b4-0622-43d7-ac01-d24cdd70e685";
 in
 {
-  nixpkgs = {
-    hostPlatform = {
-      gcc.arch = "native";
-      gcc.tune = "native";
-    };
+  nixpkgs.localSystem = {
+    gcc.arch = "native";
+    gcc.tune = "native";
   };
 
   fileSystems."/" = {
