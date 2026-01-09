@@ -7,9 +7,41 @@ let
   rootDisk = "/dev/disk/by-uuid/a03c79b4-0622-43d7-ac01-d24cdd70e685";
 in
 {
-  nixpkgs.localSystem = {
-    gcc.arch = "native";
-    gcc.tune = "native";
+  nixpkgs = {
+    overlays = [
+      (
+        final: prev:
+        let
+          optimizedStdenv = prev.lib.pipe prev.stdenv [
+            # 1. Use the Mold linker
+            prev.useMoldLinker
+
+            # 2. Apply impure native optimizations (march=native)
+            prev.impureUseNativeOptimizations
+
+            # 3. Add compiler flags
+            # We wrap this in parenthesis to pass the argument
+            (prev.withCFlags [
+              "-O3"
+              "-flto"
+              "-funroll-loops"
+            ])
+          ];
+        in
+        {
+          openssh = prev.openssh.override {
+            stdenv = optimizedStdenv;
+          };
+        }
+      )
+    ];
+    hostPlatform = {
+      system = "x86_64-linux";
+      gcc = {
+        arch = "znver1";
+        tune = "znver1";
+      };
+    };
   };
 
   fileSystems."/" = {
@@ -158,11 +190,6 @@ in
         KbdInteractiveAuthentication = false;
       };
     };
-    mosh = {
-      enable = true;
-      withUtempter = true;
-      openFirewall = true;
-    };
     qemuGuest = {
       enable = true;
     };
@@ -211,9 +238,15 @@ in
   environment = {
     defaultPackages = [ ];
     stub-ld.enable = false;
+    noXlibs = true;
   };
 
   programs = {
+    mosh = {
+      enable = true;
+      withUtempter = true;
+      openFirewall = true;
+    };
     command-not-found.enable = false;
     fish.generateCompletions = false;
   };
@@ -231,10 +264,6 @@ in
     man.enable = false;
     info.enable = false;
     doc.enable = false;
-  };
-
-  environment = {
-    noXlibs = true;
   };
 
   time.timeZone = "UTC";
