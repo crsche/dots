@@ -29,17 +29,15 @@ in
           ];
         in
         {
-          openssh = prev.openssh.override {
-            stdenv = optimizedStdenv;
-          };
+          # TODO
         }
       )
     ];
     hostPlatform = {
       system = "x86_64-linux";
       gcc = {
-        arch = "znver1";
-        tune = "znver1";
+        # arch = "znver1";
+        # tune = "znver1";
       };
     };
   };
@@ -120,12 +118,6 @@ in
       # TCP Fast Open (Lowers RTT for re-visits)
       "net.ipv4.tcp_fastopen" = 3;
 
-      # Buffer Sizes (Optimize for 1Gbps+ links)
-      "net.core.rmem_max" = 8388608;
-      "net.core.wmem_max" = 8388608;
-      "net.ipv4.tcp_rmem" = "4096 87380 8388608";
-      "net.ipv4.tcp_wmem" = "4096 87380 8388608";
-
       # Connection Handling
       "net.ipv4.tcp_max_syn_backlog" = 4096;
       "net.ipv4.tcp_max_tw_buckets" = 200000;
@@ -143,6 +135,11 @@ in
 
   networking = {
     inherit hostName;
+    nameservers = [
+      "1.1.1.1"
+      "1.0.0.1"
+    ];
+
     firewall = {
       enable = true;
       allowedTCPPorts = [
@@ -182,11 +179,10 @@ in
     };
     openssh = {
       enable = true;
+      package = pkgs.openssh_hpn;
       settings = {
         PasswordAuthentication = false;
         PermitRootLogin = "prohibit-password";
-        UseDNS = false;
-        X11Forwarding = false;
         KbdInteractiveAuthentication = false;
       };
     };
@@ -238,7 +234,6 @@ in
   environment = {
     defaultPackages = [ ];
     stub-ld.enable = false;
-    noXlibs = true;
   };
 
   programs = {
@@ -269,10 +264,6 @@ in
   time.timeZone = "UTC";
   i18n.defaultLocale = "en_US.UTF-8";
 
-  sound = {
-    enable = false;
-  };
-
   nix = {
     enable = true;
     settings = {
@@ -285,8 +276,20 @@ in
 
       allowed-users = [ "@wheel" ];
 
-      substituters = [ "https://cache.nixos.org" ];
+      substituters = [
+        "https://cache.nixos.org"
+        "https://nix-community.cachix.org"
+      ];
+      trusted-public-keys = [
+        "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+        "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+      ];
 
+      system-features = [
+        "big-parallel"
+        "kvm"
+        "gccarch-znver1"
+      ];
       experimental-features = [
         "nix-command"
         "flakes"
@@ -294,14 +297,11 @@ in
     };
     gc = {
       automatic = true;
-      dates = "daily";
+      dates = "weekly";
       options = "--delete-older-than 7d";
 
     };
   };
 
-  system = {
-    stateVersion = "26.05";
-    copySystemConfiguration = true;
-  };
+  system.stateVersion = "26.05";
 }
